@@ -20,7 +20,7 @@ const pool = new Pool({
  */
 const getUserWithEmail = function(email) {
   return pool
-    .query(`SELECT * FROM users WHERE email = $1`,[email])
+    .query(`SELECT * FROM users WHERE email = $1`, [email])
     .then((result) => {
       if (result.rows.length === 0) {
         return null;
@@ -59,7 +59,7 @@ const getUserWithId = function(id) {
 const addUser = function(user) {
   return pool
     .query(`INSERT INTO users (name, email, password) queryParams ($1, $2, $3) RETURNING *`, [user.name, user.email, user.password]
-  )
+    )
     .then((result) => {
       return result.rows[0];
     })
@@ -156,7 +156,7 @@ const getAllReservations = function(guest_id, limit = 10) {
 //     });
 // };
 
-const getAllProperties = function (options, limit = 10) {
+const getAllProperties = function(options, limit = 10) {
   const queryParams = [];
   let queryString = `
     SELECT properties.*, AVG(property_reviews.rating) AS average_rating
@@ -212,7 +212,7 @@ const getAllProperties = function (options, limit = 10) {
  * @param {{}} property An object containing all of the property details.
  * @return {Promise<{}>} A promise to the property.
  */
-const addProperty = function (property) {
+const addProperty = function(property) {
   const queryParams = [
     property.owner_id,
     property.title,
