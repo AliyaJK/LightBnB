@@ -1,6 +1,3 @@
-const properties = require("./json/properties.json");
-const users = require("./json/users.json");
-
 const { Pool } = require("pg");
 
 const pool = new Pool({
@@ -58,7 +55,9 @@ const getUserWithId = function(id) {
  */
 const addUser = function(user) {
   return pool
-    .query(`INSERT INTO users (name, email, password) queryParams ($1, $2, $3) RETURNING *`, [user.name, user.email, user.password]
+    .query(
+      `INSERT INTO users (name, email, password) VALUES ($1, $2, $3) RETURNING *`,
+      [user.name, user.email, user.password]
     )
     .then((result) => {
       return result.rows[0];
@@ -113,8 +112,8 @@ const getAllProperties = function(options, limit = 10) {
     FROM properties
     JOIN property_reviews ON properties.id = property_reviews.property_id
   `;
-
   let whereClause = '';
+  // Add WHERE clauses based on the provided options
   if (options.city) {
     queryParams.push(`%${options.city}%`);
     whereClause += `city LIKE $${queryParams.length} `;
@@ -124,31 +123,33 @@ const getAllProperties = function(options, limit = 10) {
     whereClause += `${whereClause ? 'AND ' : ''}owner_id = $${queryParams.length} `;
   }
   if (options.minimum_price_per_night) {
-    queryParams.push(options.minimum_price_per_night);
+    const minimumPriceInCents = options.minimum_price_per_night * 100;
+    queryParams.push(minimumPriceInCents);
     whereClause += `${whereClause ? 'AND ' : ''}cost_per_night >= $${queryParams.length} `;
   }
   if (options.maximum_price_per_night) {
-    queryParams.push(options.maximum_price_per_night);
+    const maximumPriceInCents = options.maximum_price_per_night * 100;
+    queryParams.push(maximumPriceInCents);
     whereClause += `${whereClause ? 'AND ' : ''}cost_per_night <= $${queryParams.length} `;
   }
   if (options.minimum_rating) {
-    queryParams.push(`${options.minimum_rating}`);
-    whereClause += `${whereClause ? 'AND' : ''}(property_reviews.rating) >= $${queryParams.length} `;
+    // Use subquery to calculate the average rating and compare it to the minimum_rating
+    whereClause += `${whereClause ? 'AND ' : ''}(
+    SELECT AVG(rating) FROM property_reviews WHERE property_id = properties.id
+  ) >= $${queryParams.length + 1} `;
+    queryParams.push(options.minimum_rating);
   }
-
   if (whereClause) {
     queryString += `WHERE ${whereClause}`;
   }
-
   queryString += `
-    GROUP BY properties.id
-    ORDER BY cost_per_night
-    LIMIT $${queryParams.length + 1};
-  `;
-
+  GROUP BY properties.id
+  ORDER BY cost_per_night
+  LIMIT $${queryParams.length + 1};
+`;
   queryParams.push(limit);
-
-  return pool.query(queryString, queryParams)
+  return pool
+    .query(queryString, queryParams)
     .then((res) => res.rows)
     .catch((err) => {
       console.log(err.message);
@@ -156,20 +157,20 @@ const getAllProperties = function(options, limit = 10) {
     });
 };
 
-
 /**
- * Add a property to the database
+ * Add a property to the database.
  * @param {{}} property An object containing all of the property details.
  * @return {Promise<{}>} A promise to the property.
  */
 const addProperty = function(property) {
+  const costPerNightInCents = property.cost_per_night * 100;
   const queryParams = [
     property.owner_id,
     property.title,
     property.description,
     property.thumbnail_photo_url,
     property.cover_photo_url,
-    property.cost_per_night,
+    costPerNightInCents,
     property.street,
     property.city,
     property.province,
@@ -179,7 +180,6 @@ const addProperty = function(property) {
     property.number_of_bathrooms,
     property.number_of_bedrooms
   ];
-
   const queryString = `
     INSERT INTO properties (
       owner_id,
@@ -201,8 +201,8 @@ const addProperty = function(property) {
     )
     RETURNING *;
   `;
-
-  return pool.query(queryString, queryParams)
+  return pool
+    .query(queryString, queryParams)
     .then((result) => result.rows[0])
     .catch((err) => {
       console.log(err.message);
